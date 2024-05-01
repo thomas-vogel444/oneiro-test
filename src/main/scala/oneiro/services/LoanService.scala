@@ -2,19 +2,25 @@ package oneiro.services
 
 import cats.effect.IO
 import oneiro.clients.LoanTable
-
-case class Loan(name: String)
+import oneiro.domain.Loan
+import oneiro.services.LoanServiceError.{EmptyName, ExistingLoan}
 
 sealed trait LoanServiceError
-case object EmptyName extends LoanServiceError
-case object ExistingLoan extends LoanServiceError
+
+object LoanServiceError {
+  case object EmptyName extends LoanServiceError
+  case object ExistingLoan extends LoanServiceError
+}
 
 class LoanService(loanTable: LoanTable) {
-  def createLoan(loan: Loan): IO[Either[LoanServiceError, String]] = {
+  def createLoan(loan: Loan): IO[Either[LoanServiceError, Unit]] = {
     if (loan.name == "") IO.pure(Left(EmptyName))
     else {
-      loanTable.get(loan.name).map {
-        case None => Left(ExistingLoan)
+      loanTable.get(loan.name).flatMap {
+        case None =>
+          loanTable.insert(loan).map(Right(_))
+        case Some(_) =>
+          IO.pure(Left(ExistingLoan))
       }
     }
   }
