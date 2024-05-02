@@ -8,10 +8,22 @@ import oneiro.domain.Loan
 import org.scalatest.EitherValues
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
+import squants.market.GBP
 
+import java.time.LocalDate
 import scala.collection.mutable
 
 class LoanServiceTest extends AsyncWordSpec with AsyncIOSpec with Matchers with EitherValues {
+
+  val genericLoan =
+    Loan(
+      name = "loan",
+      startDate = LocalDate.of(2023, 1, 2),
+      endDate = LocalDate.of(2023, 6, 2),
+      amount = GBP(1000000),
+      baseInterestRate = 0.05,
+      marginInterestRate = 0.02
+    )
 
   def loanServiceIO(initialMap: mutable.Map[String, Loan]): IO[LoanService] =
     for {
@@ -22,7 +34,7 @@ class LoanServiceTest extends AsyncWordSpec with AsyncIOSpec with Matchers with 
 
   "LoanService.createLoan" should {
     "return an error given a loan with an empty name" in {
-      val loan = Loan("")
+      val loan = genericLoan.copy(name = "")
       val initialMap = mutable.Map[String, Loan]()
 
       for {
@@ -32,7 +44,7 @@ class LoanServiceTest extends AsyncWordSpec with AsyncIOSpec with Matchers with 
     }
 
     "return an error given a loan with a name conflicting with another loan" in {
-      val existingLoan = Loan("existing-loan")
+      val existingLoan = genericLoan.copy(name = "existing-loan")
 
       val initialMap = mutable.Map[String, Loan](existingLoan.name -> existingLoan)
 
@@ -43,12 +55,11 @@ class LoanServiceTest extends AsyncWordSpec with AsyncIOSpec with Matchers with 
     }
 
     "succeed given a non-existing loan" in {
-      val loan = Loan("some-name")
       val initialMap = mutable.Map[String, Loan]()
 
       for {
         loanService <- loanServiceIO(initialMap)
-        result = loanService.createLoan(loan).unsafeRunSync()
+        result = loanService.createLoan(genericLoan).unsafeRunSync()
       } yield result.value shouldBe()
     }
 
