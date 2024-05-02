@@ -1,7 +1,7 @@
 package oneiro.services
 
 import cats.effect.IO
-import oneiro.clients.LoanTable
+import oneiro.clients.LoanRepository
 import oneiro.domain.Loan
 import oneiro.services.LoanServiceError.{EmptyName, ExistingLoan}
 
@@ -12,13 +12,13 @@ object LoanServiceError {
   case object ExistingLoan extends LoanServiceError
 }
 
-class LoanService(loanTable: LoanTable) {
+class LoanService(loanTable: LoanRepository) {
   def createLoan(loan: Loan): IO[Either[LoanServiceError, Unit]] = {
     if (loan.name == "") IO.pure(Left(EmptyName))
     else {
       loanTable.get(loan.name).flatMap {
         case None =>
-          loanTable.insert(loan).map(Right(_))
+          loanTable.upsert(loan).map(Right(_))
         case Some(_) =>
           IO.pure(Left(ExistingLoan))
       }
