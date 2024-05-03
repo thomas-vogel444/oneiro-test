@@ -4,7 +4,7 @@ import cats.data.Validated
 import cats.effect.IO
 import oneiro.domain.Loan
 import oneiro.services.LoanConsole.{getInput, validateCurrency, validateDate, validateDouble}
-import squants.market.{Currency, defaultMoneyContext}
+import squants.market.{Currency, MoneyContext, defaultMoneyContext}
 
 import java.time.LocalDate
 import scala.util.Try
@@ -50,10 +50,10 @@ class LoanConsole(loanService: LoanService) {
       case Unknown => IO.println("Unknown option. Try again.")
       case ListLoans =>
         IO.println("Loans currently in the database:") *>
-          loanService.listLoans.flatMap { loans =>
-            loans.map { loan =>
-              IO.println(s"${loan.name}: ${loan.startDate} -> ${loan.endDate}, amount: ${loan.amount}, base: ${loan.baseInterestRate}, margin: ${loan.marginInterestRate}")
-            }.reduceOption(_ *> _).getOrElse(IO.println("No loans in the database..."))
+          loanService.listLoans.flatMap {
+            _.map(loan => IO.println(Loan.show.show(loan)))
+              .reduceOption(_ *> _)
+              .getOrElse(IO.println("No loans in the database..."))
           }
       case ShowExistingLoan =>
         for {
@@ -61,9 +61,8 @@ class LoanConsole(loanService: LoanService) {
           loanName <- IO.readLine
           loanOpt <- loanService.getLoan(loanName)
           _ <-
-            loanOpt.map { loan =>
-              IO.println(s"${loan.name}: ${loan.startDate} -> ${loan.endDate}, amount: ${loan.amount}, base: ${loan.baseInterestRate}, margin: ${loan.marginInterestRate}")
-            }.getOrElse(IO.println("The name of the loan isn't in the database."))
+            loanOpt.map(loan => IO.println(Loan.show.show(loan)))
+              .getOrElse(IO.println("The name of the loan isn't in the database."))
         } yield ()
       case UpdateExistingLoan => IO.println("You chose: UpdateExistingLoan")
       case CreateLoan =>
@@ -85,7 +84,9 @@ class LoanConsole(loanService: LoanService) {
       case ExitConsole => IO.println("Exiting... Have a nice day!")
     }
 }
+
 import cats.syntax.all._
+
 object LoanConsole {
   def getInput[A](message: String)(validation: String => Validated[String, A]): IO[A] =
     for {
@@ -94,7 +95,7 @@ object LoanConsole {
       value <- validated.fold(IO.println(_) *> getInput[A](message)(validation), IO.pure)
     } yield value
 
-  implicit val moneyContext = defaultMoneyContext
+  implicit val moneyContext: MoneyContext = defaultMoneyContext
 
   def validateCurrency(raw: String): Validated[String, Currency] =
     Currency(raw).toEither.left.map(_ => "Invalid currency format. Should be in standard form e.g. GBP, USD, etc...").toValidated

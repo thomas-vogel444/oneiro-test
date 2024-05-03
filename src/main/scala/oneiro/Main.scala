@@ -1,6 +1,6 @@
 package oneiro
 
-import cats.effect.kernel.{Ref, Resource}
+import cats.effect.kernel.Ref
 import cats.effect.{ExitCode, IO, IOApp}
 import oneiro.clients.LoanRepository
 import oneiro.domain.Loan

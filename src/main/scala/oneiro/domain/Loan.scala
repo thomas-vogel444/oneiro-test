@@ -1,13 +1,12 @@
 package oneiro.domain
 
+import cats.Show
 import oneiro.domain.Loan.interestAccrued
 import squants.Money
-import squants.market.{Currency, GBP, Money, MoneyContext, defaultMoneyContext}
+import squants.market.{Currency, GBP, Money}
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
-import scala.PartialFunction.condOpt
-import scala.util.Try
 
 case class Loan(name: String, startDate: LocalDate, endDate: LocalDate, amount: Money, baseInterestRate: Double, marginInterestRate: Double) {
 
@@ -40,5 +39,8 @@ object Loan {
   def interestAccrued(start: LocalDate, end: LocalDate, interest: Double, amount: Money): Money =
     if (end.isBefore(start)) GBP(0)
     else amount * ChronoUnit.DAYS.between(start, end) / 365 * interest
+
+  val show: Show[Loan] =
+    Show.show[Loan](loan => s"${loan.name}: ${loan.startDate} -> ${loan.endDate}, amount: ${loan.amount}, base: ${loan.baseInterestRate}, margin: ${loan.marginInterestRate}")
 }
 
