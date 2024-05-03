@@ -12,5 +12,8 @@ class LoanRepository(ref: Ref[IO, mutable.Map[String, Loan]]) {
 
   def get(name: String): IO[Option[Loan]] =
     ref.get.map(_.get(name))
+
+  def getAll: IO[List[Loan]] =
+    ref.get.map(_.values.toList)
 }
 

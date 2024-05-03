@@ -1,7 +1,12 @@
 package oneiro.services
 
+import cats.data.Validated
 import cats.effect.IO
+import oneiro.domain.Loan
+import oneiro.services.LoanConsole.{getInput, validateCurrency, validateDate, validateDouble}
+import squants.market.{Currency, defaultMoneyContext}
 
+import java.time.LocalDate
 import scala.util.Try
 
 sealed trait Command
@@ -35,8 +40,8 @@ class LoanConsole(loanService: LoanService) {
           case 0 => ExitConsole
           case 1 => ListLoans
           case 2 => ShowExistingLoan
-          case 3 => UpdateExistingLoan
-          case 4 => CreateLoan
+          case 3 => CreateLoan
+          case 4 => UpdateExistingLoan
           case _ => Unknown
         }.getOrElse(Unknown)
 
@@ -48,7 +53,7 @@ class LoanConsole(loanService: LoanService) {
           loanService.listLoans.flatMap { loans =>
             loans.map { loan =>
               IO.println(s"${loan.name}: ${loan.startDate} -> ${loan.endDate}, amount: ${loan.amount}, base: ${loan.baseInterestRate}, margin: ${loan.marginInterestRate}")
-            }.reduce(_ *> _)
+            }.reduceOption(_ *> _).getOrElse(IO.println("No loans in the database..."))
           }
       case ShowExistingLoan =>
         for {
@@ -66,19 +71,37 @@ class LoanConsole(loanService: LoanService) {
           _ <- IO.println("Please input the following information:")
           _ <- IO.println("Name of the loan:")
           name <- IO.readLine
-          _ <- IO.println("Start date (format yyyy-mm-dd)")
-          startDate <- IO.readLine
-          _ <- IO.println("End date (format yyyy-mm-dd)")
-          endDate <- IO.readLine
-          _ <- IO.println("Amount")
-          amount <- IO.readLine
-          _ <- IO.println("Currency (e.g. GBP, USD, etc...)")
-          currency <- IO.readLine
-          _ <- IO.println("Base rate (write 0.05 for 5%)")
-          baseRate <- IO.readLine
-          _ <- IO.println("Margin rate (write 0.05 for 5%)")
-          marginRate <- IO.readLine
+          startDate <- getInput[LocalDate]("Input start date (format yyyy-mm-dd)")(validateDate)
+          endDate <- getInput[LocalDate]("Input end date (format yyyy-mm-dd)")(validateDate)
+          amount <- getInput[Double]("Input amount")(validateDouble)
+          currency <- getInput[Currency]("Input currency (e.g. GBP, USD, etc...)")(validateCurrency)
+          baseRate <- getInput[Double]("Input base rate (write 0.05 for 5%)")(validateDouble)
+          marginRate <- getInput[Double]("Input margin rate (write 0.05 for 5%)")(validateDouble)
+          loanOpt = Loan.from(name, startDate, endDate, amount, currency, baseRate, marginRate)
+          _ <-
+            loanOpt.map(loanService.createLoan(_) *> IO.println("Inserted the loan into the database"))
+              .getOrElse(IO.println("Invalid loan. You must have made a mistake, e.g. negate amount or interest rate, or start date after end date..."))
         } yield ()
       case ExitConsole => IO.println("Exiting... Have a nice day!")
     }
+}
+import cats.syntax.all._
+object LoanConsole {
+  def getInput[A](message: String)(validation: String => Validated[String, A]): IO[A] =
+    for {
+      _ <- IO.println(message)
+      validated <- IO.readLine.map(validation)
+      value <- validated.fold(IO.println(_) *> getInput[A](message)(validation), IO.pure)
+    } yield value
+
+  implicit val moneyContext = defaultMoneyContext
+
+  def validateCurrency(raw: String): Validated[String, Currency] =
+    Currency(raw).toEither.left.map(_ => "Invalid currency format. Should be in standard form e.g. GBP, USD, etc...").toValidated
+
+  def validateDate(raw: String): Validated[String, LocalDate] =
+    Try(LocalDate.parse(raw)).toEither.left.map(_ => "Invalid format for date yyyy-mm-dd").toValidated
+
+  def validateDouble(raw: String): Validated[String, Double] =
+    Try(raw.toDouble).toEither.left.map(_ => "Invalid double. Should be a positive decimal e.g. 0.05 for 5%.").toValidated
 }

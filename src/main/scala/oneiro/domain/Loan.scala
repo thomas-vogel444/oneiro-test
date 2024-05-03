@@ -1,11 +1,13 @@
 package oneiro.domain
 
-import oneiro.domain.SimpleInterest.interestAccrued
+import oneiro.domain.Loan.interestAccrued
 import squants.Money
-import squants.market.GBP
+import squants.market.{Currency, GBP, Money, MoneyContext, defaultMoneyContext}
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import scala.PartialFunction.condOpt
+import scala.util.Try
 
 case class Loan(name: String, startDate: LocalDate, endDate: LocalDate, amount: Money, baseInterestRate: Double, marginInterestRate: Double) {
 
@@ -13,7 +15,7 @@ case class Loan(name: String, startDate: LocalDate, endDate: LocalDate, amount: 
     interestAccruedOnLoan(accrualDate, baseInterestRate)
 
   def dailyInterestAmountWithoutMargin: Money =
-    amount * 1/365 * baseInterestRate
+    amount * 1 / 365 * baseInterestRate
 
   def totalInterestAccrued(accrualDate: LocalDate): Money =
     interestAccruedOnLoan(accrualDate, marginInterestRate + baseInterestRate)
@@ -26,9 +28,17 @@ case class Loan(name: String, startDate: LocalDate, endDate: LocalDate, amount: 
   }
 }
 
-object SimpleInterest {
+object Loan {
+  /**
+   * Should have more granular validation than just being an Option.
+   */
+  def from(name: String, startDate: LocalDate, endDate: LocalDate, amount: Double, rawCurrency: Currency, baseInterestRate: Double, marginInterestRate: Double): Option[Loan] =
+    Option.when(startDate.isBefore(endDate) && amount > 0 && baseInterestRate > 0 && marginInterestRate > 0) {
+      Loan(name, startDate, endDate, Money.apply(amount, rawCurrency), baseInterestRate, marginInterestRate)
+    }
+
   def interestAccrued(start: LocalDate, end: LocalDate, interest: Double, amount: Money): Money =
     if (end.isBefore(start)) GBP(0)
-    else amount * ChronoUnit.DAYS.between(start, end)/365 * interest
+    else amount * ChronoUnit.DAYS.between(start, end) / 365 * interest
 }
 
